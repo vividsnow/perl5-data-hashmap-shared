@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+    branches: ['*']
+  pull_request:
+
+jobs:
+  debian:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        perl: ['5.22', '5.32', '5.40']
+    name: Debian / Perl ${{ matrix.perl }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: ${{ matrix.perl }}
+      - run: cpanm -n Devel::PPPort XS::Parse::Keyword
+      - run: perl Makefile.PL && make && make test
+
+  alpine:
+    runs-on: ubuntu-latest
+    name: Alpine / musl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jirutka/setup-alpine@v1
+        with:
+          packages: perl perl-dev perl-app-cpanminus make gcc musl-dev linux-headers
+      - run: cpanm -n Module::Build ExtUtils::CChecker Devel::PPPort XS::Parse::Keyword XS::Parse::Keyword::Builder
+        shell: alpine.sh {0}
+      - run: perl Makefile.PL && make && make test
+        shell: alpine.sh {0}
+        env:
+          PERL5LIB: /home/runner/perl5/lib/perl5
