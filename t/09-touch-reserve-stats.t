@@ -15,7 +15,7 @@ sub tmpfile { File::Temp::tempnam(File::Spec->tmpdir, 'shm_test') . '.shm' }
 # touch refreshes TTL
 {
     my $path = tmpfile();
-    my $map = Data::HashMap::Shared::II->new($path, 1000, 0, 2);
+    my $map = Data::HashMap::Shared::II->new($path, 1000, 0, 10);
 
     shm_ii_put $map, 1, 10;
     sleep 1;
@@ -24,7 +24,7 @@ sub tmpfile { File::Temp::tempnam(File::Spec->tmpdir, 'shm_test') . '.shm' }
     ok(shm_ii_touch $map, 1, 'touch returns true for existing key');
 
     my $rem = shm_ii_ttl_remaining $map, 1;
-    ok($rem > 1, "TTL refreshed after touch: $rem");
+    ok($rem > 5, "TTL refreshed after touch: $rem");
 
     # touch non-existent key
     ok(!shm_ii_touch $map, 999, 'touch returns false for missing key');
@@ -204,11 +204,11 @@ sub tmpfile { File::Temp::tempnam(File::Spec->tmpdir, 'shm_test') . '.shm' }
     shm_ii_put $map, 2, 20;
     sleep 2;
 
-    # trigger lazy expiry via get
-    shm_ii_get $map, 1;
-    is(shm_ii_stat_expired $map, 1, '1 lazy expiry after get');
+    # get returns undef for expired (clock: no active expiry on read)
+    my $v = shm_ii_get $map, 1;
+    ok(!defined $v, 'get returns undef for expired entry');
 
-    # flush remaining
+    # flush expires all stale entries
     shm_ii_flush_expired $map;
     is(shm_ii_stat_expired $map, 2, '2 total after flush');
 
