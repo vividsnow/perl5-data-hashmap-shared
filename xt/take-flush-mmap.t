@@ -1,6 +1,8 @@
 use strict;
 use warnings;
 use Test::More;
+
+plan skip_all => "AUTHOR_TESTING not set" unless $ENV{AUTHOR_TESTING};
 use File::Temp ();
 use File::Spec ();
 
