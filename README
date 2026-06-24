@@ -1,6 +1,6 @@
 NAME
-    Data::HashMap::Shared - Type-specialized shared-memory hash maps for
-    multiprocess access
+    Data::HashMap::Shared - Multiprocess shared-memory hash maps with LRU
+    eviction and per-key TTL
 
 SYNOPSIS
         use Data::HashMap::Shared::II;
@@ -44,7 +44,9 @@ SYNOPSIS
 DESCRIPTION
     Data::HashMap::Shared provides type-specialized hash maps stored in
     file-backed shared memory (mmap(MAP_SHARED)), enabling efficient
-    multiprocess data sharing on Linux.
+    multiprocess data sharing on Linux. With opt-in LRU eviction and per-key
+    TTL it doubles as a fast cross-process cache; lookups take a lock-free
+    seqlock fast path.
 
     Linux-only. Requires 64-bit Perl.
 
@@ -61,8 +63,10 @@ DESCRIPTION
 
     *   Keyword API via XS::Parse::Keyword for maximum speed
 
-    *   Opt-in LRU eviction and per-key TTL (lock-free reads via clock
-        eviction)
+    *   Opt-in LRU eviction — clock/second-chance algorithm; reads stay
+        lock-free
+
+    *   Opt-in per-key TTL expiry — lazy removal on access; monotonic clock
 
     *   Stale lock recovery for both writers and readers (dead PIDs detected
         and drained automatically)
