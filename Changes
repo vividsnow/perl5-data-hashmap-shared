@@ -1,5 +1,9 @@
 Revision history for Data-HashMap-Shared
 
+0.13  2026-06-24
+    - Docs: abstract and description now highlight LRU and per-key TTL
+    - Add Cookbook, examples, and an oracle test (no code change)
+
 0.12  2026-06-09
     - Optional $arena_cap (bytes) constructor arg decouples string-storage
       capacity from max_entries (no header change; reopen-compatible)

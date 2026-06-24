@@ -1,7 +1,7 @@
 package Data::HashMap::Shared;
 use strict;
 use warnings;
-our $VERSION = '0.12';
+our $VERSION = '0.13';
 
 require XSLoader;
 XSLoader::load('Data::HashMap::Shared', $VERSION);
@@ -14,7 +14,7 @@ __END__
 
 =head1 NAME
 
-Data::HashMap::Shared - Type-specialized shared-memory hash maps for multiprocess access
+Data::HashMap::Shared - Multiprocess shared-memory hash maps with LRU eviction and per-key TTL
 
 =head1 SYNOPSIS
 
@@ -60,7 +60,9 @@ Data::HashMap::Shared - Type-specialized shared-memory hash maps for multiproces
 
 Data::HashMap::Shared provides type-specialized hash maps stored in
 file-backed shared memory (C<mmap(MAP_SHARED)>), enabling efficient
-multiprocess data sharing on Linux.
+multiprocess data sharing on Linux. With opt-in B<LRU eviction> and
+B<per-key TTL> it doubles as a fast cross-process B<cache>; lookups take a
+lock-free seqlock fast path.
 
 B<Linux-only>. Requires 64-bit Perl.
 
@@ -80,7 +82,9 @@ B<Linux-only>. Requires 64-bit Perl.
 
 =item * Keyword API via XS::Parse::Keyword for maximum speed
 
-=item * Opt-in LRU eviction and per-key TTL (lock-free reads via clock eviction)
+=item * Opt-in B<LRU eviction> — clock/second-chance algorithm; reads stay lock-free
+
+=item * Opt-in B<per-key TTL> expiry — lazy removal on access; monotonic clock
 
 =item * Stale lock recovery for both writers and readers (dead PIDs detected and drained automatically)
 
