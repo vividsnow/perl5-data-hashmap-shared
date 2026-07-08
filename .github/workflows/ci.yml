@@ -75,3 +75,38 @@ jobs:
       - run: AUTHOR_TESTING=1 prove -b -j2 xt/*.t
         env:
           AUTHOR_TESTING: 1
+
+  test-asan:
+    runs-on: ubuntu-latest
+    name: ASan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: '5.40'
+      - run: cpanm -n XS::Parse::Keyword Devel::PPPort
+      - run: perl Makefile.PL OPTIMIZE='-g -fsanitize=address -fno-omit-frame-pointer'
+      - run: make
+      - name: test under ASan
+        run: |
+          ASAN_LIB=$(cc -print-file-name=libasan.so)
+          LD_PRELOAD=$ASAN_LIB ASAN_OPTIONS=detect_leaks=0 make test
+
+
+  test-valgrind:
+    runs-on: ubuntu-latest
+    name: valgrind
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: '5.40'
+      - run: sudo apt-get update && sudo apt-get install -y valgrind
+      - run: cpanm -n XS::Parse::Keyword Devel::PPPort
+      - run: perl Makefile.PL && make
+      - name: test under valgrind
+        run: |
+          for t in t/*.t; do
+            echo "== valgrind $t =="
+            valgrind --leak-check=full --error-exitcode=42 --errors-for-leak-kinds=definite perl -Mblib "$t" || exit 1
+          done
