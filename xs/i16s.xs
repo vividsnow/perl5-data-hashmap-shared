@@ -71,6 +71,7 @@ put(SV* self_sv, int16_t key, SV* value)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         EXTRACT_STR_VAL(value);
+        REEXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         RETVAL = shm_i16s_put(h, key, _vstr, (uint32_t)_vlen, _vutf8);
     OUTPUT:
         RETVAL
@@ -243,6 +244,7 @@ put_ttl(SV* self_sv, int16_t key, SV* value, UV ttl_sec)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         EXTRACT_STR_VAL(value);
+        REEXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         REQUIRE_TTL(h);
         RETVAL = shm_i16s_put_ttl(h, key, _vstr, (uint32_t)_vlen, _vutf8, (uint32_t)ttl_sec);
     OUTPUT:
@@ -438,6 +440,7 @@ get_or_set(SV* self_sv, int16_t key, SV* default_sv)
         EXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         const char *out_str; uint32_t out_len; bool out_utf8;
         EXTRACT_STR_VAL(default_sv);
+        REEXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         int rc = shm_i16s_get_or_set(h, key, _vstr, (uint32_t)_vlen, _vutf8, &out_str, &out_len, &out_utf8);
         if (!rc) XSRETURN_UNDEF;
         RETVAL = newSVpvn(out_str, out_len);
@@ -628,6 +631,7 @@ add(SV* self_sv, int16_t key, SV* val_sv)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         EXTRACT_STR_VAL(val_sv);
+        REEXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         RETVAL = shm_i16s_add(h, key, _vstr, (uint32_t)_vlen, _vutf8);
     OUTPUT:
         RETVAL
@@ -637,6 +641,7 @@ add_ttl(SV* self_sv, int16_t key, SV* val_sv, UV ttl_sec)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         EXTRACT_STR_VAL(val_sv);
+        REEXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         REQUIRE_TTL(h);
         RETVAL = shm_i16s_add_ttl(h, key, _vstr, (uint32_t)_vlen, _vutf8, (uint32_t)ttl_sec);
     OUTPUT:
@@ -647,6 +652,7 @@ update(SV* self_sv, int16_t key, SV* val_sv)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         EXTRACT_STR_VAL(val_sv);
+        REEXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         RETVAL = shm_i16s_update(h, key, _vstr, (uint32_t)_vlen, _vutf8);
     OUTPUT:
         RETVAL
@@ -656,6 +662,7 @@ update_ttl(SV* self_sv, int16_t key, SV* val_sv, UV ttl_sec)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         EXTRACT_STR_VAL(val_sv);
+        REEXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         REQUIRE_TTL(h);
         RETVAL = shm_i16s_update_ttl(h, key, _vstr, (uint32_t)_vlen, _vutf8, (uint32_t)ttl_sec);
     OUTPUT:
@@ -667,6 +674,7 @@ swap(SV* self_sv, int16_t key, SV* val_sv)
         EXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         EXTRACT_STR_VAL(val_sv);
         const char *out_s; uint32_t out_l; bool out_u;
+        REEXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         int rc = shm_i16s_swap(h, key, _vstr, (uint32_t)_vlen, _vutf8, &out_s, &out_l, &out_u);
         if (rc != 1) XSRETURN_UNDEF;
         RETVAL = newSVpvn(out_s, out_l);
@@ -679,6 +687,7 @@ cas(SV* self_sv, int16_t key, SV* expected_sv, SV* desired_sv)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         EXTRACT_STR_EXPECTED_DESIRED(expected_sv, desired_sv);
+        REEXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         RETVAL = shm_i16s_cas(h, key, _estr, (uint32_t)_elen, _dstr, (uint32_t)_dlen, _dutf8);
     OUTPUT:
         RETVAL
@@ -689,6 +698,7 @@ cas_take(SV* self_sv, int16_t key, SV* expected_sv)
         EXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         EXTRACT_STR_EXPECTED(expected_sv);
         const char *out_s; uint32_t out_l; bool out_u;
+        REEXTRACT_MAP("Data::HashMap::Shared::I16S", self_sv);
         if (!shm_i16s_cas_take(h, key, _estr, (uint32_t)_elen, &out_s, &out_l, &out_u)) XSRETURN_UNDEF;
         RETVAL = newSVpvn(out_s, out_l);
         if (out_u) SvUTF8_on(RETVAL);
