@@ -20,12 +20,23 @@
 
 /* ---- Exception-safe lock guard for rdlock held across Perl API calls ---- */
 
+/* Release the lock, then drop the depth taken by the guard. If a $obj->DESTROY
+ * arrived from argument magic while we held the lock, shm_close_map deferred
+ * the free precisely so this cleanup could still run on a live handle; perform
+ * it now that the last lock is gone. */
+static void shm_guard_leave(ShmHandle *h) {
+    if (--h->lock_depth == 0 && h->pending_close) shm_close_map_now(h);
+}
+
 static void shm_rdunlock_cleanup(pTHX_ void *ptr) {
-    shm_rwlock_rdunlock((ShmHandle *)ptr);
+    ShmHandle *h = (ShmHandle *)ptr;
+    shm_rwlock_rdunlock(h);
+    shm_guard_leave(h);
 }
 
 #define RDLOCK_GUARD(handle) \
     shm_rwlock_rdlock(handle); \
+    (handle)->lock_depth++; \
     SAVEDESTRUCTOR_X(shm_rdunlock_cleanup, (void*)(handle))
 
 /* ---- Exception-safe guard for a wrlock + seqlock write section ----
@@ -39,11 +50,13 @@ static void shm_wrseq_unlock_cleanup(pTHX_ void *ptr) {
     ShmHandle *h = (ShmHandle *)ptr;
     shm_seqlock_write_end(&h->hdr->seq);
     shm_rwlock_wrunlock(h);
+    shm_guard_leave(h);
 }
 
 #define WRSEQ_GUARD(handle) \
     shm_rwlock_wrlock(handle); \
     shm_seqlock_write_begin(&(handle)->hdr->seq); \
+    (handle)->lock_depth++; \
     SAVEDESTRUCTOR_X(shm_wrseq_unlock_cleanup, (void*)(handle))
 
 /* Exception-safe free() for malloc'd scratch buffers (e.g. drain's value
