@@ -84,18 +84,24 @@ set_multi(SV* self_sv, ...)
         uint32_t count = 0;
         if (h->shard_handles) {
             for (int i = 1; i < items; i += 2) {
+                int32_t _val = (int32_t)SvIV(ST(i + 1));
+                REEXTRACT_MAP("Data::HashMap::Shared::SI32", self_sv);
                 STRLEN _klen; const char *_kstr = SvPV(ST(i), _klen);
                 bool _kutf8 = SvUTF8(ST(i)) ? 1 : 0;
                 if (_klen > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
-                count += shm_si32_put(h, _kstr, (uint32_t)_klen, _kutf8, (int32_t)SvIV(ST(i + 1)));
+                REEXTRACT_MAP("Data::HashMap::Shared::SI32", self_sv);
+                count += shm_si32_put(h, _kstr, (uint32_t)_klen, _kutf8, _val);
             }
         } else {
             WRSEQ_GUARD(h);
             for (int i = 1; i < items; i += 2) {
+                int32_t _val = (int32_t)SvIV(ST(i + 1));
+                REEXTRACT_MAP("Data::HashMap::Shared::SI32", self_sv);
                 STRLEN _klen; const char *_kstr = SvPV(ST(i), _klen);
                 bool _kutf8 = SvUTF8(ST(i)) ? 1 : 0;
                 if (_klen > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
-                count += shm_si32_put_inner(h, _kstr, (uint32_t)_klen, _kutf8, (int32_t)SvIV(ST(i + 1)), SHM_TTL_USE_DEFAULT);
+                REEXTRACT_MAP("Data::HashMap::Shared::SI32", self_sv);
+                count += shm_si32_put_inner(h, _kstr, (uint32_t)_klen, _kutf8, _val, SHM_TTL_USE_DEFAULT);
             }
         }
         RETVAL = count;
@@ -112,6 +118,7 @@ remove_multi(SV* self_sv, ...)
                 STRLEN _kl; const char *_ks = SvPV(ST(i), _kl);
                 bool _ku = SvUTF8(ST(i)) ? 1 : 0;
                 if (_kl > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                REEXTRACT_MAP("Data::HashMap::Shared::SI32", self_sv);
                 count += shm_si32_remove(h, _ks, (uint32_t)_kl, _ku);
             }
         } else {
@@ -120,6 +127,7 @@ remove_multi(SV* self_sv, ...)
                 STRLEN _kl; const char *_ks = SvPV(ST(i), _kl);
                 bool _ku = SvUTF8(ST(i)) ? 1 : 0;
                 if (_kl > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                REEXTRACT_MAP("Data::HashMap::Shared::SI32", self_sv);
                 count += shm_si32_remove_inner(h, _ks, (uint32_t)_kl, _ku);
             }
             if (count) shm_si32_maybe_shrink(h);
@@ -140,6 +148,7 @@ get_multi(SV* self_sv, ...)
                 STRLEN _kl; const char *_ks = SvPV(ST(i + 1), _kl);
                 bool _ku = SvUTF8(ST(i + 1)) ? 1 : 0;
                 int32_t val;
+                REEXTRACT_MAP("Data::HashMap::Shared::SI32", self_sv);
                 if (shm_si32_get(h, _ks, (uint32_t)_kl, _ku, &val))
                     mPUSHi(val);
                 else
@@ -156,6 +165,7 @@ get_multi(SV* self_sv, ...)
             for (int i = 0; i < nkeys; i++) {
                 STRLEN _kl; const char *_ks = SvPV(ST(i + 1), _kl);
                 bool _ku = SvUTF8(ST(i + 1)) ? 1 : 0;
+                REEXTRACT_MAP("Data::HashMap::Shared::SI32", self_sv);
                 uint32_t hash = shm_hash_string(_ks, (uint32_t)_kl);
                 uint32_t pos = hash & mask;
                 uint8_t tag = SHM_MAKE_TAG(hash);

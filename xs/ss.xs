@@ -85,10 +85,21 @@ set_multi(SV* self_sv, ...)
         uint32_t count = 0;
         if (h->shard_handles) {
             for (int i = 1; i < items; i += 2) {
-                STRLEN _kl; const char *_ks = SvPV(ST(i), _kl);
-                bool _ku = SvUTF8(ST(i)) ? 1 : 0;
+                /* Both key and value are PV args, so only one of them can be
+                 * captured last. Resolve the VALUE first and capture the KEY
+                 * last: SvPV must be used (not SvPV_nomg) because _nomg skips
+                 * overload dispatch, which would silently stringify an
+                 * overloaded argument as "Class=ARRAY(0x...)".
+                 * Residual, documented rather than papered over: a key whose
+                 * own overload mutates the VALUE scalar can still dangle _vs.
+                 * Closing that without copying is not possible when either
+                 * side may mutate the other. */
                 STRLEN _vl; const char *_vs = SvPV(ST(i+1), _vl);
                 bool _vu = SvUTF8(ST(i+1)) ? 1 : 0;
+                REEXTRACT_MAP("Data::HashMap::Shared::SS", self_sv);
+                STRLEN _kl; const char *_ks = SvPV(ST(i), _kl);
+                bool _ku = SvUTF8(ST(i)) ? 1 : 0;
+                REEXTRACT_MAP("Data::HashMap::Shared::SS", self_sv);
                 if (_kl > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
                 if (_vl > SHM_MAX_STR_LEN) croak("value too long (max 1GB)");
                 count += shm_ss_put(h, _ks, (uint32_t)_kl, _ku, _vs, (uint32_t)_vl, _vu);
@@ -96,12 +107,18 @@ set_multi(SV* self_sv, ...)
         } else {
             WRSEQ_GUARD(h);
             for (int i = 1; i < items; i += 2) {
-                STRLEN _kl; const char *_ks = SvPV(ST(i), _kl);
-                bool _ku = SvUTF8(ST(i)) ? 1 : 0;
-                if (_kl > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                /* Same ordering as the sharded branch above: value resolved
+                 * first, key captured last, SvPV (not _nomg) so overload
+                 * dispatch still happens, and the handle re-read after each
+                 * magic-capable step. */
                 STRLEN _vl; const char *_vs = SvPV(ST(i+1), _vl);
                 bool _vu = SvUTF8(ST(i+1)) ? 1 : 0;
                 if (_vl > SHM_MAX_STR_LEN) croak("value too long (max 1GB)");
+                REEXTRACT_MAP("Data::HashMap::Shared::SS", self_sv);
+                STRLEN _kl; const char *_ks = SvPV(ST(i), _kl);
+                bool _ku = SvUTF8(ST(i)) ? 1 : 0;
+                if (_kl > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                REEXTRACT_MAP("Data::HashMap::Shared::SS", self_sv);
                 count += shm_ss_put_inner(h, _ks, (uint32_t)_kl, _ku, _vs, (uint32_t)_vl, _vu, SHM_TTL_USE_DEFAULT);
             }
         }
@@ -119,6 +136,7 @@ remove_multi(SV* self_sv, ...)
                 STRLEN _kl; const char *_ks = SvPV(ST(i), _kl);
                 bool _ku = SvUTF8(ST(i)) ? 1 : 0;
                 if (_kl > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                REEXTRACT_MAP("Data::HashMap::Shared::SS", self_sv);
                 count += shm_ss_remove(h, _ks, (uint32_t)_kl, _ku);
             }
         } else {
@@ -127,6 +145,7 @@ remove_multi(SV* self_sv, ...)
                 STRLEN _kl; const char *_ks = SvPV(ST(i), _kl);
                 bool _ku = SvUTF8(ST(i)) ? 1 : 0;
                 if (_kl > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                REEXTRACT_MAP("Data::HashMap::Shared::SS", self_sv);
                 count += shm_ss_remove_inner(h, _ks, (uint32_t)_kl, _ku);
             }
             if (count) shm_ss_maybe_shrink(h);
@@ -147,6 +166,7 @@ get_multi(SV* self_sv, ...)
                 STRLEN _kl; const char *_ks = SvPV(ST(i + 1), _kl);
                 bool _ku = SvUTF8(ST(i + 1)) ? 1 : 0;
                 const char *out_s; uint32_t out_l; bool out_u;
+                REEXTRACT_MAP("Data::HashMap::Shared::SS", self_sv);
                 if (shm_ss_get(h, _ks, (uint32_t)_kl, _ku, &out_s, &out_l, &out_u)) {
                     SV *sv = newSVpvn(out_s, out_l);
                     if (out_u) SvUTF8_on(sv);
@@ -164,6 +184,7 @@ get_multi(SV* self_sv, ...)
             for (int i = 0; i < nkeys; i++) {
                 STRLEN _kl; const char *_ks = SvPV(ST(i + 1), _kl);
                 bool _ku = SvUTF8(ST(i + 1)) ? 1 : 0;
+                REEXTRACT_MAP("Data::HashMap::Shared::SS", self_sv);
                 uint32_t hash = shm_hash_string(_ks, (uint32_t)_kl);
                 uint32_t pos = hash & mask;
                 uint8_t tag = SHM_MAKE_TAG(hash);
