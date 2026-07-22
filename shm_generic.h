@@ -313,6 +313,8 @@ typedef struct ShmHandle_s {
     uint32_t   cached_pid;   /* getpid() cached at last slot claim */
     uint32_t   cached_fork_gen; /* shm_fork_gen value at last slot claim -- mismatch triggers reclaim */
     uint32_t slotless_held; /* rwlock read-locks held with no reader-slot */
+    uint32_t lock_depth;    /* locks this process holds via RDLOCK_GUARD/WRSEQ_GUARD */
+    uint8_t  pending_close; /* DESTROY arrived while lock_depth > 0; free at depth 0 */
     size_t     mmap_size;
     uint32_t   max_mask;    /* max_table_cap - 1, for seqlock bounds clamping */
     uint32_t   iter_pos;
@@ -1531,7 +1533,23 @@ static inline int shm_msync(ShmHandle *h) {
     return rc;
 }
 
+static void shm_close_map_now(ShmHandle *h);
+
+/* Destroying a handle while THIS process holds one of its locks would leave the
+ * save-stack lock cleanup (shm_rdunlock_cleanup / shm_wrseq_unlock_cleanup)
+ * dereferencing freed memory on unwind -- the guards capture the raw handle
+ * pointer. Argument magic can call $obj->DESTROY from inside a guarded region,
+ * so defer the free until the last lock is released.
+ * lock_depth lives in the process-local handle, not the shared segment: no
+ * on-disk format change, and no atomics (a handle is never shared between
+ * threads -- CLONE_SKIP forbids cloning it). */
 static void shm_close_map(ShmHandle *h) {
+    if (!h) return;
+    if (h->lock_depth) { h->pending_close = 1; return; }
+    shm_close_map_now(h);
+}
+
+static void shm_close_map_now(ShmHandle *h) {
     if (!h) return;
     if (h->shard_handles) {
         /* Sharded: close all sub-handles */
