@@ -72,7 +72,8 @@ jobs:
           perl-version: '5.40'
       - run: cpanm -n XS::Parse::Keyword Devel::PPPort BSD::Resource Time::HiRes
       - run: perl Makefile.PL && make
-      - run: AUTHOR_TESTING=1 prove -b xt/*.t
+      - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdb
+      - run: AUTHOR_TESTING=1 CRASH_GDB=1 prove -b xt/*.t
         env:
           AUTHOR_TESTING: 1
 
