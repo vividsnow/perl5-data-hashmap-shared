@@ -61,6 +61,14 @@ jobs:
         run: |
           UBSAN_LIB=$(cc -print-file-name=libubsan.so)
           LD_PRELOAD=$UBSAN_LIB UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 make test
+      - name: author tests under UBSan
+        run: |
+          UBSAN_LIB=$(cc -print-file-name=libubsan.so)
+          for t in xt/*.t; do
+            case "$t" in xt/asan.t|xt/tsan.t|xt/valgrind*.t) continue;; esac
+            echo "== $t =="
+            AUTHOR_TESTING=1 LD_PRELOAD=$UBSAN_LIB UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 perl -Mblib "$t" || exit 1
+          done
 
   test-xt:
     runs-on: ubuntu-latest
@@ -70,7 +78,7 @@ jobs:
       - uses: shogo82148/actions-setup-perl@v1
         with:
           perl-version: '5.40'
-      - run: cpanm -n XS::Parse::Keyword Devel::PPPort BSD::Resource Time::HiRes
+      - run: cpanm -n XS::Parse::Keyword Devel::PPPort Time::HiRes Test::Kwalitee
       - run: perl Makefile.PL && make
       - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdb
       - run: AUTHOR_TESTING=1 CRASH_GDB=1 prove -b xt/*.t
@@ -92,6 +100,14 @@ jobs:
         run: |
           ASAN_LIB=$(cc -print-file-name=libasan.so)
           LD_PRELOAD=$ASAN_LIB ASAN_OPTIONS=detect_leaks=0 make test
+      - name: author tests under ASan
+        run: |
+          ASAN_LIB=$(cc -print-file-name=libasan.so)
+          for t in xt/*.t; do
+            case "$t" in xt/asan.t|xt/tsan.t|xt/valgrind*.t|xt/oversize_key.t) continue;; esac
+            echo "== $t =="
+            AUTHOR_TESTING=1 LD_PRELOAD=$ASAN_LIB ASAN_OPTIONS=detect_leaks=0 perl -Mblib "$t" || exit 1
+          done
 
 
   test-valgrind:
@@ -109,5 +125,5 @@ jobs:
         run: |
           for t in t/*.t; do
             echo "== valgrind $t =="
-            valgrind --leak-check=full --error-exitcode=42 --errors-for-leak-kinds=definite perl -Mblib "$t" || exit 1
+            PERL_DESTRUCT_LEVEL=2 valgrind --leak-check=full --error-exitcode=42 --errors-for-leak-kinds=definite perl -Mblib "$t" || exit 1
           done
