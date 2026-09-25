@@ -1,5 +1,20 @@
 Revision history for Data-HashMap-Shared
 
+0.22      2026-09-26
+          - A writer killed during a table resize (grow, shrink or tombstone
+            compaction) no longer loses entries: the next process to take the
+            lock finishes the resize.
+          - A writer killed mid put or remove no longer leaves an entry that
+            never expires or a broken arena free list.
+          - DATA_HASHMAP_SHARED_SPARSE=0 reserves a new segment's space up
+            front, so a full filesystem makes the constructor croak instead of
+            a later write dying with SIGBUS.
+          - A create that fails at mmap no longer leaves a full-size file
+            behind.
+          - Checking a file left by an interrupted create no longer allocates
+            its pages on tmpfs.
+          - Error messages no longer lose their reason to a long path.
+
 0.21      2026-09-15
           - Builds on older toolchains (compilers defaulting to C89, glibc
             before 2.27, no kernel headers) and now requires 64-bit pointers.

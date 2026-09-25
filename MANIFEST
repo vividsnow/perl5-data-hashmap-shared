@@ -144,6 +144,7 @@ xt/destroy_during_call.t
 xt/eacces.t
 xt/edge-cases.t
 xt/eg_runs.t
+xt/enospc.t
 xt/fallback_constants.t
 xt/fd_leak.t
 xt/fd_validation.t
@@ -161,6 +162,7 @@ xt/mpmc_fuzz.t
 xt/new_ops_fuzz.t
 xt/oversize_key.t
 xt/reader_starvation_guard.t
+xt/resize_crash_gdb.t
 xt/rwlock_scaling.t
 xt/slotless_reader_recovery.t
 xt/stale_recovery_crash.t

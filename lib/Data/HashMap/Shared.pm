@@ -1,7 +1,7 @@
 package Data::HashMap::Shared;
 use strict;
 use warnings;
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 
 require XSLoader;
 XSLoader::load('Data::HashMap::Shared', $VERSION);
@@ -809,6 +809,9 @@ entry names bytes that are intact and complete.  All that is lost is free space
 the cleared lists held that had not been relisted yet; it comes back only when a
 later compaction slides blocks down over it or ends the arena below it, or when
 the map empties.  A writer killed inside C<clear> is repaired by the next insert.
+A writer killed part-way through a table resize loses nothing: the resize moves
+the entries in place, keeping a record of its progress in the header, and the
+process that recovers the lock finishes it before anyone reads the table.
 C<stat_recoveries> (C<recoveries> in C<stats>) counts stale B<write>-lock
 recoveries; a dead reader drained by a writer is not counted, so the counter
 staying at zero does not mean nothing has been recovered.
@@ -845,29 +848,28 @@ B<Limitation>: PID-based recovery assumes all processes share the same
 PID namespace. Cross-container sharing (different PID namespaces) is not
 supported.
 
-B<A full filesystem arrives as SIGBUS, not as an error.> The backing file is
-sized once, at creation, for the map's maximum geometry, and its table and arena
-are otherwise sparse: growing the table writes into pages that were never
-allocated rather than extending the file. So C<mmap_size> is the space the file
-will need once every page has been touched, not what it occupies now, and
-if the filesystem fills while a page is first written, the kernel raises SIGBUS
-in the writing process instead of returning an error. One raised in the middle
-of a table resize takes with it the entries not yet re-inserted, exactly as a
-SIGKILL there would. Leave C<mmap_size> bytes of headroom on the filesystem, or
-C<fallocate -l> the file after creating it to take the allocation failure up
-front rather than at an arbitrary later insert. Use B<exactly> C<mmap_size>
-bytes: a file longer than the size recorded in its header is refused as corrupt,
-and for a sharded set C<mmap_size> is the total across shards, so use each shard
-file's own size rather than the aggregate.
+B<A full filesystem can kill a writer with SIGBUS.> The backing file is sized
+once, at creation, for the map's maximum geometry (C<mmap_size>), and C<new>,
+C<new_sharded> and C<new_memfd> create it sparse: the table and arena take
+pages only as they are first written, growing the table writes into pages that
+were never allocated, and if the filesystem fills while a page is first
+written the kernel raises SIGBUS in the writing process instead of returning
+an error. One raised in the middle of a table resize stops it as a SIGKILL
+would, and the process that recovers the lock raises the same SIGBUS finishing
+it while the filesystem is still full, so leave C<mmap_size> bytes of headroom
+on the filesystem. Set C<DATA_HASHMAP_SHARED_SPARSE=0> to reserve all of
+C<mmap_size> at creation, so a filesystem that cannot hold it makes the
+constructor croak instead; on tmpfs and memfd that commits the map's memory at
+once, and a memory cgroup too small for it gets an OOM kill rather than a
+croak.
 
 After recovery from a mid-mutation crash, the map data may be partially
 inconsistent (e.g., one entry was being updated when the writer died).
 Locks, the LRU chain and the entry counters are restored. The arena free
-lists are not rebuilt, so blocks in flight at the crash may leak; the specific
-entry being mutated may have stale or partial bytes; and a crash part-way
-through a table resize permanently drops the entries that had not yet been
-re-inserted. Calling C<clear> after detecting a stale lock recovery is
-recommended for safety-critical applications.
+lists are not rebuilt, so blocks in flight at the crash may leak, and the
+specific entry being mutated may have stale or partial bytes. Calling C<clear>
+after detecting a stale lock recovery is recommended for safety-critical
+applications.
 
 An interrupted B<create> is recovered too. A creator killed after the file is
 sized but before its header is committed leaves a full-size, all-zero file,
@@ -881,8 +883,9 @@ corrupted after the fact reaches the same croak, so check before deleting
 anything you care about.
 
 Recovery is run by whichever process next takes a lock, readers included, so a
-map shared with a process running anything older than 0.18 keeps that release's
-crash windows. Upgrade every process sharing a map together.
+map shared with a process running an older release keeps that release's crash
+windows: before 0.18, writer windows that corrupt the map; before 0.22, a
+resize nobody finishes. Upgrade every process sharing a map together.
 
 =head2 Reader-slot exhaustion
 
