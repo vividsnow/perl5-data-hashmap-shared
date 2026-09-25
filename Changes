@@ -1,5 +1,80 @@
 Revision history for Data-HashMap-Shared
 
+0.22      2026-09-26
+          - A writer killed during a table resize (grow, shrink or tombstone
+            compaction) no longer loses entries: the next process to take the
+            lock finishes the resize.
+          - A writer killed during clear no longer leaves a partly cleared
+            map: the next process to take the lock finishes the clear.
+          - A writer killed mid put or remove no longer leaves an entry that
+            never expires or a broken arena free list.
+          - DATA_HASHMAP_SHARED_SPARSE=0 reserves a new segment's space up
+            front, so a full filesystem makes the constructor croak instead of
+            a later write dying with SIGBUS.
+          - A create that fails at mmap no longer leaves a full-size file
+            behind.
+          - Checking a file left by an interrupted create no longer allocates
+            its pages on tmpfs.
+          - Error messages no longer lose their reason to a long path.
+          - Resizing a large map with string keys is faster, and so are get,
+            exists, counter, cas and get_or_set hits, and LRU reads of hot keys.
+          - Lock waits no longer burn system calls or, behind a stalled
+            writer, a whole CPU; reads and writes stay fast with many
+            processes attached.
+          - LRU eviction no longer spares an expired entry for having been
+            read, taking it instead of a live one.
+          - get and exists no longer retry indefinitely while busy writers
+            keep invalidating a long read; they fall back to the read lock.
+          - Faster method and keyword calls; counters that fail say why, and
+            every error names its class.
+          - An insert no longer stalls after the whole LRU cache was read.
+          - A map churned at max_entries no longer fills every empty slot with
+            tombstones, after which each miss walked the whole table.
+          - A TTL map flushes its expired entries when an insert takes the
+            table over its load, not only when it is full: a flood of new keys
+            under a partial-flush timer no longer slows inserts to a crawl or
+            stalls reads for seconds.
+          - A TTL map whose arena is held by expired entries flushes them
+            rather than refusing every new key or value.
+          - At $max_size, an insert of a string no arena can hold is refused
+            without evicting an entry.
+          - $map->unlink leaves a file its path no longer names (a relative
+            path after a chdir, or a map renamed over it).
+          - drain with a negative limit croaks instead of draining everything.
+          - to_hash, keys, values and items no longer hold writers back
+            while they build their result, and to_hash is faster on large
+            maps.
+          - A long pass under the write lock (resize, arena compaction,
+            expired flush, clear, drain, set_multi, remove_multi, a write that
+            hashes, stores or copies out a megabyte or more) blocks signals,
+            once one arrives, until the lock is released: a fast signal timer
+            can no longer make Perl croak it midway, which lost entries in the
+            two batch writes and left the lock held in the rest. A signal sent
+            meanwhile takes effect when the pass ends.
+          - A read croaked that way inside its read lock no longer keeps
+            writers out until its process exits: the handle gives the lock
+            back at its next call that takes it, or when it is destroyed.
+          - An open that meets a file another user is just creating waits
+            for it instead of croaking.
+          - A symlink at a map's path is refused as one, not as "Too many
+            levels of symbolic links".
+          - Storable, and a serialiser that calls FREEZE, croak on a map or
+            cursor instead of making a second object on the same handle.
+          - After its arena was full, a map compacts again once a sixteenth
+            of its entries are gone, instead of waiting out a long back-off.
+          - A map file whose size disagrees with its header says so.
+          - A call that waits for the lock judges TTL expiry when it gets it.
+          - A variant mismatch error names both variants.
+          - flush_expired_partial on a sharded map reports done after one
+            pass over every shard, and a cycle shrinks a table it emptied
+            even when its last slice expires nothing. With several flushers
+            on one map, one is told of most cycles another ends.
+          - With $lru_skip, an update whose promotion is skipped still marks
+            its key as recently used.
+          - A file_mode above 07777 croaks instead of setting other bits;
+            the type bits of a regular file's (stat $f)[2] are still ignored.
+          - Correct the documentation.
+
 0.21      2026-09-15
           - Builds on older toolchains (compilers defaulting to C89, glibc
             before 2.27, no kernel headers) and now requires 64-bit pointers.

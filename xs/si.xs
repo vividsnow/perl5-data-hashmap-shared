@@ -5,10 +5,9 @@ SV*
 new(char* class, SV* path_sv, UV max_entries, UV lru_max = 0, UV ttl_default = 0, UV lru_skip = 0, UV arena_cap = 0, UV file_mode = 0600)
     CODE:
         CK_U32(max_entries, "max_entries", "Data::HashMap::Shared::SI"); CK_U32(lru_max, "lru_max", "Data::HashMap::Shared::SI"); CK_U32(ttl_default, "ttl_default", "Data::HashMap::Shared::SI"); CK_U32(lru_skip, "lru_skip", "Data::HashMap::Shared::SI");
-        char errbuf[SHM_ERR_BUFLEN]; const char* path = SHM_WRITE_PATH_ARG(path_sv, "path", "Data::HashMap::Shared::SI", "new"); ShmHandle* map = shm_si_create(path, (uint32_t)max_entries, (uint32_t)lru_max, (uint32_t)ttl_default, (uint32_t)lru_skip, (uint64_t)arena_cap, (mode_t)file_mode, errbuf);
+        char errbuf[SHM_ERR_BUFLEN]; const char* path = SHM_WRITE_PATH_ARG(path_sv, "path", "Data::HashMap::Shared::SI", "new"); ShmHandle* map = shm_si_create(path, (uint32_t)max_entries, (uint32_t)lru_max, (uint32_t)ttl_default, (uint32_t)lru_skip, (uint64_t)arena_cap, shm_file_mode(aTHX_ file_mode, "Data::HashMap::Shared::SI"), errbuf);
         if (!map) croak("Data::HashMap::Shared::SI: %s", errbuf[0] ? errbuf : "unknown error");
-        RETVAL = sv_setref_pv(newSV(0), class, (void*)map);
-        CK_MAX_SIZE(map, "Data::HashMap::Shared::SI", RETVAL);
+        SHM_RETURN_MAP(map, "Data::HashMap::Shared::SI", class);
     OUTPUT:
         RETVAL
 
@@ -18,10 +17,9 @@ new_sharded(char* class, SV* path_prefix_sv, UV num_shards, UV max_entries, UV l
         const char* path_prefix = SHM_WRITE_PATH_ARG(path_prefix_sv, "path prefix", "Data::HashMap::Shared::SI", "new_sharded");
         CK_U32(max_entries, "max_entries", "Data::HashMap::Shared::SI"); CK_U32(lru_max, "lru_max", "Data::HashMap::Shared::SI"); CK_U32(ttl_default, "ttl_default", "Data::HashMap::Shared::SI"); CK_U32(lru_skip, "lru_skip", "Data::HashMap::Shared::SI");
         CK_U32(num_shards, "num_shards", "Data::HashMap::Shared::SI");
-        char errbuf[SHM_ERR_BUFLEN]; ShmHandle* map = shm_si_create_sharded(path_prefix, (uint32_t)num_shards, (uint32_t)max_entries, (uint32_t)lru_max, (uint32_t)ttl_default, (uint32_t)lru_skip, (uint64_t)arena_cap, (mode_t)file_mode, errbuf);
+        char errbuf[SHM_ERR_BUFLEN]; ShmHandle* map = shm_si_create_sharded(path_prefix, (uint32_t)num_shards, (uint32_t)max_entries, (uint32_t)lru_max, (uint32_t)ttl_default, (uint32_t)lru_skip, (uint64_t)arena_cap, shm_file_mode(aTHX_ file_mode, "Data::HashMap::Shared::SI"), errbuf);
         if (!map) croak("Data::HashMap::Shared::SI: %s", errbuf[0] ? errbuf : "unknown error");
-        RETVAL = sv_setref_pv(newSV(0), class, (void*)map);
-        CK_MAX_SIZE(map, "Data::HashMap::Shared::SI", RETVAL);
+        SHM_RETURN_MAP(map, "Data::HashMap::Shared::SI", class);
     OUTPUT:
         RETVAL
 
@@ -34,8 +32,7 @@ new_memfd(char* class, SV* name_sv, UV max_entries, UV lru_max = 0, UV ttl_defau
         CK_U32(max_entries, "max_entries", "Data::HashMap::Shared::SI"); CK_U32(lru_max, "lru_max", "Data::HashMap::Shared::SI"); CK_U32(ttl_default, "ttl_default", "Data::HashMap::Shared::SI"); CK_U32(lru_skip, "lru_skip", "Data::HashMap::Shared::SI");
         ShmHandle* map = shm_si_create_memfd(name, (uint32_t)max_entries, (uint32_t)lru_max, (uint32_t)ttl_default, (uint32_t)lru_skip, (uint64_t)arena_cap, errbuf);
         if (!map) croak("Data::HashMap::Shared::SI: %s", errbuf[0] ? errbuf : "unknown error");
-        RETVAL = sv_setref_pv(newSV(0), class, (void*)map);
-        CK_MAX_SIZE(map, "Data::HashMap::Shared::SI", RETVAL);
+        SHM_RETURN_MAP(map, "Data::HashMap::Shared::SI", class);
     OUTPUT:
         RETVAL
 
@@ -46,8 +43,7 @@ new_from_fd(char* class, int fd)
         SHM_TAINT_CHECK("Data::HashMap::Shared::SI->new_from_fd");
         ShmHandle* map = shm_si_open_fd(fd, errbuf);
         if (!map) croak("Data::HashMap::Shared::SI: %s", errbuf[0] ? errbuf : "unknown error");
-        RETVAL = sv_setref_pv(newSV(0), class, (void*)map);
-        CK_MAX_SIZE(map, "Data::HashMap::Shared::SI", RETVAL);
+        SHM_RETURN_MAP(map, "Data::HashMap::Shared::SI", class);
     OUTPUT:
         RETVAL
 
@@ -100,7 +96,7 @@ void
 sync(SV* self_sv)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
-        if (shm_msync(h) != 0) croak("Data::HashMap::Shared::SI sync: %s", strerror(errno));
+        if (shm_msync(h) != 0) croak("Data::HashMap::Shared::SI->sync: %s", strerror(errno));
 
 void
 DESTROY(SV* self_sv)
@@ -127,7 +123,7 @@ set_multi(SV* self_sv, ...)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
         if (h->readonly || shm_is_sealed(h)) croak("Data::HashMap::Shared::SI: map is frozen (read-only)");
-        if ((items - 1) % 2 != 0) croak("set_multi requires even number of arguments (key, value pairs)");
+        if ((items - 1) % 2 != 0) croak("%s: set_multi requires an even number of arguments (key, value pairs)", shm_class);
         uint32_t count = 0;
         /* Resolve the value first: its get-magic can realloc or free the key's
          * PV, so capture the key last.  The value must land in a local, since
@@ -139,7 +135,7 @@ set_multi(SV* self_sv, ...)
                 REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
                 STRLEN _klen; const char *_kstr = SvPV(ST(i), _klen);
                 bool _kutf8 = SvUTF8(ST(i)) ? 1 : 0;
-                if (_klen > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                if (_klen > SHM_MAX_STR_LEN) croak("%s: key too long (max 1GB)", shm_class);
                 REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
                 count += shm_si_put(h, _kstr, (uint32_t)_klen, _kutf8, _val);
             }
@@ -158,14 +154,15 @@ set_multi(SV* self_sv, ...)
             for (int i = 1, j = 0; i < items; i += 2, j++) {
                 _vs[j] = (int64_t)SvIV(ST(i + 1));
                 STRLEN _l; const char *_p = SvPV(ST(i), _l);
-                if (_l > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                if (_l > SHM_MAX_STR_LEN) croak("%s: key too long (max 1GB)", shm_class);
                 SHM_COPY_IF_MAGICAL(ST(i), _p, _l);
                 _ks[j] = _p; _kl[j] = _l; _ku[j] = SvUTF8(ST(i)) ? 1 : 0;
             }
             REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
-            WRSEQ_GUARD(h);
-            for (int j = 0; j < _n; j++)
+            WRSEQ_BEGIN(h);
+            for (int j = 0; j < _n; j++, shm_sig_check_every(h, (uint32_t)j, SHM_SIG_CHECK_ENTRIES))
                 count += shm_si_put_inner(h, _ks[j], (uint32_t)_kl[j], _ku[j], _vs[j], SHM_TTL_USE_DEFAULT);
+            WRSEQ_END(h);
         }
         RETVAL = count;
     OUTPUT:
@@ -181,7 +178,7 @@ remove_multi(SV* self_sv, ...)
             for (int i = 1; i < items; i++) {
                 STRLEN _kl; const char *_ks = SvPV(ST(i), _kl);
                 bool _ku = SvUTF8(ST(i)) ? 1 : 0;
-                if (_kl > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                if (_kl > SHM_MAX_STR_LEN) croak("%s: key too long (max 1GB)", shm_class);
                 REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
                 count += shm_si_remove(h, _ks, (uint32_t)_kl, _ku);
             }
@@ -193,15 +190,16 @@ remove_multi(SV* self_sv, ...)
             Newx(_ku, _n ? _n : 1, bool);         SAVEFREEPV(_ku);
             for (int i = 1, j = 0; i < items; i++, j++) {
                 STRLEN _l; const char *_p = SvPV(ST(i), _l);
-                if (_l > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                if (_l > SHM_MAX_STR_LEN) croak("%s: key too long (max 1GB)", shm_class);
                 SHM_COPY_IF_MAGICAL(ST(i), _p, _l);
                 _ks[j] = _p; _kl[j] = _l; _ku[j] = SvUTF8(ST(i)) ? 1 : 0;
             }
             REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
-            WRSEQ_GUARD(h);
-            for (int j = 0; j < _n; j++)
+            WRSEQ_BEGIN(h);
+            for (int j = 0; j < _n; j++, shm_sig_check_every(h, (uint32_t)j, SHM_SIG_CHECK_ENTRIES))
                 count += shm_si_remove_inner(h, _ks[j], (uint32_t)_kl[j], _ku[j]);
             if (count) shm_si_maybe_shrink(h);
+            WRSEQ_END(h);
         }
         RETVAL = count;
     OUTPUT:
@@ -218,7 +216,7 @@ get_multi(SV* self_sv, ...)
             for (int i = 0; i < nkeys; i++) {
                 STRLEN _kl; const char *_ks = SvPV(ST(i + 1), _kl);
                 bool _ku = SvUTF8(ST(i + 1)) ? 1 : 0;
-                if (_kl > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                if (_kl > SHM_MAX_STR_LEN) croak("%s: key too long (max 1GB)", shm_class);
                 int64_t val;
                 REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
                 if (shm_si_get(h, _ks, (uint32_t)_kl, _ku, &val))
@@ -232,7 +230,6 @@ get_multi(SV* self_sv, ...)
             uint8_t *states = h->states;
             char *arena = h->arena;
             uint64_t arena_cap = h->hdr->arena_cap;
-            uint32_t now = h->expires_at ? shm_now() : 0;
             /* Materialize the keys before the lock: SvPV runs a tied FETCH or
              * overload, which must not run under the read lock, or a key that
              * re-enters this map with a write self-deadlocks it.  A magical key
@@ -243,12 +240,13 @@ get_multi(SV* self_sv, ...)
             Newx(kutf8, nkeys, bool);         SAVEFREEPV(kutf8);
             for (int i = 0; i < nkeys; i++) {
                 STRLEN _l; const char *_p = SvPV(ST(i + 1), _l);
-                if (_l > SHM_MAX_STR_LEN) croak("key too long (max 1GB)");
+                if (_l > SHM_MAX_STR_LEN) croak("%s: key too long (max 1GB)", shm_class);
                 SHM_COPY_IF_MAGICAL(ST(i + 1), _p, _l);
                 keys[i] = _p; klens[i] = _l; kutf8[i] = SvUTF8(ST(i + 1)) ? 1 : 0;
             }
             REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
             RDLOCK_GUARD(h);
+            uint32_t now = h->expires_at ? shm_now() : 0;
             uint32_t mask = hdr->table_cap - 1;
             for (int i = 0; i < nkeys; i++) {
                 const char *_ks = keys[i]; STRLEN _kl = klens[i]; bool _ku = kutf8[i];
@@ -271,9 +269,7 @@ get_multi(SV* self_sv, ...)
                     }
                 }
                 if (found) {
-                    /* count as an access for LRU second-chance, like get() does */
-                    if (h->lru_accessed && !h->readonly)
-                        __atomic_store_n(&h->lru_accessed[fidx], 1, __ATOMIC_RELAXED);
+                    shm_lru_mark(h, fidx);
                     mPUSHi(val);
                 } else PUSHs(&PL_sv_undef);
                 if (i + 1 < nkeys) {
@@ -438,7 +434,7 @@ incr(SV* self_sv, SV* key_sv)
         REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
         int ok;
         int64_t val = shm_si_incr_by(h, _kstr, (uint32_t)_klen, _kutf8, 1, &ok);
-        if (!ok) croak("Data::HashMap::Shared::SI: increment failed");
+        if (!ok) croak("Data::HashMap::Shared::SI: increment failed: no room for a new key");
         RETVAL = newSViv(val);
     OUTPUT:
         RETVAL
@@ -452,7 +448,7 @@ decr(SV* self_sv, SV* key_sv)
         REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
         int ok;
         int64_t val = shm_si_incr_by(h, _kstr, (uint32_t)_klen, _kutf8, -1, &ok);
-        if (!ok) croak("Data::HashMap::Shared::SI: decrement failed");
+        if (!ok) croak("Data::HashMap::Shared::SI: decrement failed: no room for a new key");
         RETVAL = newSViv(val);
     OUTPUT:
         RETVAL
@@ -466,7 +462,7 @@ incr_by(SV* self_sv, SV* key_sv, int64_t delta)
         REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
         int ok;
         int64_t val = shm_si_incr_by(h, _kstr, (uint32_t)_klen, _kutf8, delta, &ok);
-        if (!ok) croak("Data::HashMap::Shared::SI: incr_by failed");
+        if (!ok) croak("Data::HashMap::Shared::SI: incr_by failed: no room for a new key");
         RETVAL = newSViv(val);
     OUTPUT:
         RETVAL
@@ -480,7 +476,7 @@ max(SV* self_sv, SV* key_sv, int64_t desired)
         REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
         int ok;
         int64_t val = shm_si_set_minmax(h, _kstr, (uint32_t)_klen, _kutf8, desired, 1, &ok);
-        if (!ok) croak("Data::HashMap::Shared::SI: max failed");
+        if (!ok) croak("Data::HashMap::Shared::SI: max failed: no room for a new key");
         RETVAL = newSViv(val);
     OUTPUT:
         RETVAL
@@ -494,7 +490,7 @@ min(SV* self_sv, SV* key_sv, int64_t desired)
         REEXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
         int ok;
         int64_t val = shm_si_set_minmax(h, _kstr, (uint32_t)_klen, _kutf8, desired, 0, &ok);
-        if (!ok) croak("Data::HashMap::Shared::SI: min failed");
+        if (!ok) croak("Data::HashMap::Shared::SI: min failed: no room for a new key");
         RETVAL = newSViv(val);
     OUTPUT:
         RETVAL
@@ -519,66 +515,22 @@ void
 keys(SV* self_sv)
     PPCODE:
         EXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
-        uint32_t ns = h->shard_handles ? h->num_shards : 1;
-        for (uint32_t si = 0; si < ns; si++) {
-            ShmHandle *sh = h->shard_handles ? h->shard_handles[si] : h;
-            ShmHeader *hdr = sh->hdr;
-            ShmNodeSI *nodes = (ShmNodeSI *)sh->nodes;
-            uint32_t now = sh->expires_at ? shm_now() : 0;
-            RDLOCK_GUARD(sh);
-            EXTEND(SP, hdr->size);
-            for (uint32_t i = 0; i < hdr->table_cap; i++) {
-                if (SHM_IS_LIVE(sh->states[i]) && !SHM_IS_EXPIRED(sh, i, now)) {
-                    char _ib[SHM_INLINE_MAX]; uint32_t klen;
-                    const char *kp = shm_str_ptr(nodes[i].key_off, nodes[i].key_len, sh->arena, sh->hdr->arena_cap, _ib, &klen);
-                    SV* sv = newSVpvn(kp, klen);
-                    if (SHM_UNPACK_UTF8(nodes[i].key_len)) SvUTF8_on(sv);
-                    mXPUSHs(sv);
-                }
-            }
-        }
+        SHM_LIST_COPIES(ShmNodeSI, 1, 1, SHM_COPY_STR(key_off, key_len));
 
 void
 values(SV* self_sv)
     PPCODE:
         EXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
-        uint32_t ns = h->shard_handles ? h->num_shards : 1;
-        for (uint32_t si = 0; si < ns; si++) {
-            ShmHandle *sh = h->shard_handles ? h->shard_handles[si] : h;
-            ShmHeader *hdr = sh->hdr;
-            ShmNodeSI *nodes = (ShmNodeSI *)sh->nodes;
-            uint32_t now = sh->expires_at ? shm_now() : 0;
-            RDLOCK_GUARD(sh);
-            EXTEND(SP, hdr->size);
-            for (uint32_t i = 0; i < hdr->table_cap; i++) {
-                if (SHM_IS_LIVE(sh->states[i]) && !SHM_IS_EXPIRED(sh, i, now))
-                    mXPUSHi(__atomic_load_n(&nodes[i].value, __ATOMIC_RELAXED));
-            }
-        }
+        SHM_LIST_COPIES(ShmNodeSI, 1, 0,
+            SHM_COPY_INT(__atomic_load_n(&nodes[i].value, __ATOMIC_RELAXED)));
 
 void
 items(SV* self_sv)
     PPCODE:
         EXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
-        uint32_t ns = h->shard_handles ? h->num_shards : 1;
-        for (uint32_t si = 0; si < ns; si++) {
-            ShmHandle *sh = h->shard_handles ? h->shard_handles[si] : h;
-            ShmHeader *hdr = sh->hdr;
-            ShmNodeSI *nodes = (ShmNodeSI *)sh->nodes;
-            uint32_t now = sh->expires_at ? shm_now() : 0;
-            RDLOCK_GUARD(sh);
-            EXTEND(SP, hdr->size * 2);
-            for (uint32_t i = 0; i < hdr->table_cap; i++) {
-                if (SHM_IS_LIVE(sh->states[i]) && !SHM_IS_EXPIRED(sh, i, now)) {
-                    char _ib[SHM_INLINE_MAX]; uint32_t klen;
-                    const char *kp = shm_str_ptr(nodes[i].key_off, nodes[i].key_len, sh->arena, sh->hdr->arena_cap, _ib, &klen);
-                    SV* sv = newSVpvn(kp, klen);
-                    if (SHM_UNPACK_UTF8(nodes[i].key_len)) SvUTF8_on(sv);
-                    mXPUSHs(sv);
-                    mXPUSHi(__atomic_load_n(&nodes[i].value, __ATOMIC_RELAXED));
-                }
-            }
-        }
+        SHM_LIST_COPIES(ShmNodeSI, 2, 1,
+            SHM_COPY_STR(key_off, key_len);
+            SHM_COPY_INT(__atomic_load_n(&nodes[i].value, __ATOMIC_RELAXED)));
 
 
 void
@@ -616,27 +568,33 @@ SV*
 to_hash(SV* self_sv)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
-        HV* hv = newHV();
+        SV* raw = sv_2mortal(newSV(1));
+        SV* keys = sv_2mortal(newSV(1));
+        SSize_t n = 0, nraw = 0;
+        STRLEN kused = 0;
         uint32_t ns = h->shard_handles ? h->num_shards : 1;
+        ENTER;
         for (uint32_t si = 0; si < ns; si++) {
             ShmHandle *sh = h->shard_handles ? h->shard_handles[si] : h;
             ShmHeader *hdr = sh->hdr;
             ShmNodeSI *nodes = (ShmNodeSI *)sh->nodes;
-            uint32_t now = sh->expires_at ? shm_now() : 0;
             RDLOCK_GUARD(sh);
-            for (uint32_t i = 0; i < hdr->table_cap; i++) {
+            uint32_t now = sh->expires_at ? shm_now() : 0, left = hdr->size;
+            IV *r = (IV *)SvGROW(raw, (nraw + (STRLEN)left) * sizeof(IV) + 1);
+            SvGROW(keys, kused + (STRLEN)left * 16 + 16);
+            for (uint32_t i = 0; i < hdr->table_cap && left; i++) {
                 if (SHM_IS_LIVE(sh->states[i]) && !SHM_IS_EXPIRED(sh, i, now)) {
                     char _ib[SHM_INLINE_MAX]; uint32_t klen;
                     const char *kp = shm_str_ptr(nodes[i].key_off, nodes[i].key_len, sh->arena, sh->hdr->arena_cap, _ib, &klen);
-                    bool kutf8 = SHM_UNPACK_UTF8(nodes[i].key_len);
-                    SV* val = newSViv(__atomic_load_n(&nodes[i].value, __ATOMIC_RELAXED));
-                    if (!hv_store(hv, kp,
-                                   kutf8 ? -(I32)klen : (I32)klen, val, 0)) SvREFCNT_dec(val);
+                    kused = shm_pack_key(aTHX_ keys, kused, kp, klen, SHM_UNPACK_UTF8(nodes[i].key_len));
+                    r[nraw++] = (IV)__atomic_load_n(&nodes[i].value, __ATOMIC_RELAXED);
+                    n++; left--;
                 }
             }
         }
+        LEAVE;
 
-        RETVAL = newRV_noinc((SV*)hv);
+        RETVAL = shm_copies_to_hashref(aTHX_ raw, keys, NULL, n);
     OUTPUT:
         RETVAL
 
@@ -696,8 +654,9 @@ shift(SV* self_sv)
         mPUSHi(out_val);
 
 void
-drain(SV* self_sv, UV limit)
+drain(SV* self_sv, SV* limit_sv)
     PPCODE:
+        UV limit = shm_count_arg(aTHX_ limit_sv, "drain limit", "Data::HashMap::Shared::SI");
         EXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
         if (h->readonly || shm_is_sealed(h)) croak("Data::HashMap::Shared::SI: map is frozen (read-only)");
         /* Only as many as the map can actually yield: drain(1e9) on a
@@ -945,7 +904,7 @@ cursor(SV* self_sv)
     CODE:
         EXTRACT_MAP("Data::HashMap::Shared::SI", self_sv);
         ShmCursor* c = shm_cursor_create(h);
-        if (!c) croak("Failed to allocate cursor");
+        if (!c) croak("%s: failed to allocate a cursor", shm_class);
         c->owner = SvREFCNT_inc(SvRV(self_sv));
         RETVAL = sv_setref_pv(newSV(0), "Data::HashMap::Shared::SI::Cursor", (void*)c);
     OUTPUT:
