@@ -13,7 +13,7 @@ jobs:
         perl: ['5.22', '5.32', '5.40']
     name: Debian / Perl ${{ matrix.perl }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shogo82148/actions-setup-perl@v1
         with:
           perl-version: ${{ matrix.perl }}
@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Alpine / musl
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: jirutka/setup-alpine@v1
         with:
           packages: perl perl-dev perl-app-cpanminus make gcc musl-dev linux-headers
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     name: ARM64 / Linux
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shogo82148/actions-setup-perl@v1
         with:
           perl-version: '5.40'
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     name: UBSan
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shogo82148/actions-setup-perl@v1
         with:
           perl-version: '5.40'
@@ -74,14 +74,15 @@ jobs:
     runs-on: ubuntu-latest
     name: AUTHOR_TESTING (xt/)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shogo82148/actions-setup-perl@v1
         with:
           perl-version: '5.40'
       - run: cpanm -n XS::Parse::Keyword Devel::PPPort Time::HiRes Test::Kwalitee
       - run: perl Makefile.PL && make
       - run: sudo apt-get -qq update && sudo apt-get -qq install -y gdb
-      - run: AUTHOR_TESTING=1 CRASH_GDB=1 prove -b xt/*.t
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - run: AUTHOR_TESTING=1 CRASH_GDB=1 prove -b xt/*.t t/86-signals-held.t
         env:
           AUTHOR_TESTING: 1
 
@@ -89,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     name: ASan
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shogo82148/actions-setup-perl@v1
         with:
           perl-version: '5.40'
@@ -110,11 +111,23 @@ jobs:
           done
 
 
+  test-threads:
+    runs-on: ubuntu-latest
+    name: ithreads / Perl 5.40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: '5.40'
+          multi-thread: 'true'
+      - run: cpanm -n Devel::PPPort XS::Parse::Keyword
+      - run: perl Makefile.PL && make && make test
+
   test-valgrind:
     runs-on: ubuntu-latest
     name: valgrind
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shogo82148/actions-setup-perl@v1
         with:
           perl-version: '5.40'
